@@ -92,7 +92,7 @@ cap = cv2.VideoCapture(1)
 click_delay = 10  # Delay in frames to register subsequent clicks
 click_timer = 0   # Timer to control click frequency
 
-while True:
+while cap.isOpened() and not stop:
     ret, frame = cap.read()
     if not ret:
         break
