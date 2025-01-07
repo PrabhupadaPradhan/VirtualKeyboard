@@ -88,7 +88,7 @@ def get_hovered_key(hand_x, hand_y):
 
 
 # Main loop
-cap = cv2.VideoCapture(1)
+cap = cv2.VideoCapture(0)
 click_delay = 10  # Delay in frames to register subsequent clicks
 click_timer = 0   # Timer to control click frequency
 
