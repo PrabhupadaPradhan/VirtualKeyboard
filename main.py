@@ -2,6 +2,22 @@ import numpy as np
 import cv2
 import mediapipe as mp
 import streamlit as st
+from streamlit.components.v1 import html
+
+st.title("Camera Access")
+html_code = """
+<video autoplay muted></video>
+<script>
+navigator.mediaDevices.getUserMedia({ video: true })
+  .then((stream) => {
+    document.querySelector('video').srcObject = stream;
+  })
+  .catch((err) => {
+    console.error('Error accessing webcam:', err);
+  });
+</script>
+"""
+html(html_code)
 
 st.title("Virtual Keyboard")
 frame_placeholder = st.empty()
@@ -90,123 +106,122 @@ def get_hovered_key(hand_x, hand_y):
 # Main loop
 click_delay = 10  # Delay in frames to register subsequent clicks
 click_timer = 0   # Timer to control click frequency
-for i in range(10):
-    cap = cv2.VideoCapture(i)
-    while cap.isOpened() and not stop:
-        ret, frame = cap.read()
-        if not ret:
-            break
-        
-        frame = cv2.flip(frame, 1)  # Flip for a mirror effect
-        h, w, _ = frame.shape 
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) 
+cap = cv2.VideoCapture(0)
+while cap.isOpened() and not stop:
+    ret, frame = cap.read()
+    if not ret:
+        break
     
-        # Mediapipe processing
-        result = hands.process(frame)
-        hover_key = None
-    
-        if result.multi_hand_landmarks:
-            for hand_landmarks in result.multi_hand_landmarks:
-                # Draw landmarks
-                mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+    frame = cv2.flip(frame, 1)  # Flip for a mirror effect
+    h, w, _ = frame.shape 
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) 
+
+    # Mediapipe processing
+    result = hands.process(frame)
+    hover_key = None
+
+    if result.multi_hand_landmarks:
+        for hand_landmarks in result.multi_hand_landmarks:
+            # Draw landmarks
+            mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+            
+            # Get index and middle finger tip coordinates
+            index_tip = hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP]
+            middle_tip = hand_landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_TIP]
+
+            x_index, y_index = int(index_tip.x * w), int(index_tip.y * h)
+            x_middle, y_middle = int(middle_tip.x * w), int(middle_tip.y * h)
+            
+            # Check if hovering over a key
+            hover_key = get_hovered_key(x_index, y_index)
+            
+            # Check if index and middle fingers are close together (click condition)
+            distance = np.sqrt((x_index - x_middle)**2 + (y_index - y_middle)**2)
+            if distance < 40 and hover_key and click_timer == 0:
+                row, col = hover_key
+                key = keys[row][col] 
                 
-                # Get index and middle finger tip coordinates
-                index_tip = hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP]
-                middle_tip = hand_landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_TIP]
-    
-                x_index, y_index = int(index_tip.x * w), int(index_tip.y * h)
-                x_middle, y_middle = int(middle_tip.x * w), int(middle_tip.y * h)
-                
-                # Check if hovering over a key
-                hover_key = get_hovered_key(x_index, y_index)
-                
-                # Check if index and middle fingers are close together (click condition)
-                distance = np.sqrt((x_index - x_middle)**2 + (y_index - y_middle)**2)
-                if distance < 40 and hover_key and click_timer == 0:
-                    row, col = hover_key
-                    key = keys[row][col] 
+                if key == "BackSpace":
+                # Remove the last character from output_text if it's not empty
+                    if len(output_text) > 0:
+                        output_text = output_text[:-1]
+                elif key == "Space":
+                    # Add a space if the "Space" key is clicked
+                    output_text += " "
+                else:
+                    # Add the clicked key to the output text
+                    output_text += key
+                    click_timer = click_delay  # Reset click timer
                     
-                    if key == "BackSpace":
-                    # Remove the last character from output_text if it's not empty
-                        if len(output_text) > 0:
-                            output_text = output_text[:-1]
-                    elif key == "Space":
-                        # Add a space if the "Space" key is clicked
-                        output_text += " "
-                    else:
-                        # Add the clicked key to the output text
-                        output_text += key
-                        click_timer = click_delay  # Reset click timer
-                        
-                        cv2.circle(frame, (x_index, y_index), 10, (0, 0, 255), -1)
-                        cv2.circle(frame, (x_middle, y_middle), 10, (0, 0, 255), -1)
-    
-        # Reduce click timer
-        if click_timer > 0:
-            click_timer -= 1
-    
-        # Draw keyboard
-        draw_keyboard(frame, hover_key)
-    
-        # Update cursor timer for blinking
-        cursor_timer += 1
-        if cursor_timer >= cursor_blink_delay:
-            cursor_visible = not cursor_visible
-            cursor_timer = 0
-    
-    
-        # Display output text
-        output_box_origin = (400, 800)
-        cv2.rectangle(frame, output_box_origin, (1200, 1000), (255, 255, 255, 50), -1)
-        output_list = []
-        cnt = 0
-        temp = ""
-        limit = 30
-    
-        # Split text into lines of length <= limit
-        for i in output_text:
-            temp += i
-            cnt += 1
-            if cnt == limit:
-                output_list.append(temp)
-                cnt = 0
-                temp = ""
-        if len(temp) > 0:
+                    cv2.circle(frame, (x_index, y_index), 10, (0, 0, 255), -1)
+                    cv2.circle(frame, (x_middle, y_middle), 10, (0, 0, 255), -1)
+
+    # Reduce click timer
+    if click_timer > 0:
+        click_timer -= 1
+
+    # Draw keyboard
+    draw_keyboard(frame, hover_key)
+
+    # Update cursor timer for blinking
+    cursor_timer += 1
+    if cursor_timer >= cursor_blink_delay:
+        cursor_visible = not cursor_visible
+        cursor_timer = 0
+
+
+    # Display output text
+    output_box_origin = (400, 800)
+    cv2.rectangle(frame, output_box_origin, (1200, 1000), (255, 255, 255, 50), -1)
+    output_list = []
+    cnt = 0
+    temp = ""
+    limit = 30
+
+    # Split text into lines of length <= limit
+    for i in output_text:
+        temp += i
+        cnt += 1
+        if cnt == limit:
             output_list.append(temp)
-    
-        # Add an empty line if output_text is empty
-        if not output_list:
-            output_list.append("")
-    
-        # Draw each line of text
-        for i in range(len(output_list)):
-            cv2.putText(
-                frame, ("Output: " if i == 0 else " " * 8) + output_list[i],
-                (output_box_origin[0] + 10, output_box_origin[1] + 50 * (i + 1)),
-                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2
-            )
-    
-        # Draw a blinking cursor accurately
-        if cursor_visible:
-            last_line = output_list[-1]
-            prefix = "Output: " if len(output_list) == 1 else " " * 8
-            text_to_cursor = prefix + last_line
-    
-            # Calculate cursor position using text width
-            text_width, text_height = cv2.getTextSize(text_to_cursor, cv2.FONT_HERSHEY_SIMPLEX, 1, 2)[0]
-            cursor_x = output_box_origin[0] + 10 + text_width
-            cursor_y = output_box_origin[1] + 50 * len(output_list)
-    
-            # Draw the cursor as a small vertical rectangle
-            cursor_height = 30  # Height of the cursor
-            cv2.rectangle(frame, (cursor_x, cursor_y - cursor_height), (cursor_x + 2, cursor_y), (0, 0, 0), -1)
-    
-        #cv2.imshow("Virtual Keyboard", frame)
-        frame_placeholder.image(frame, channels = "RGB")
-        if cv2.waitKey(1) & 0xFF == 27 or stop:  # Press Esc to exit
-            break
-    
-    
-    cap.release()
-    # cv2.destroyAllWindows()
-    st.success("HI")
+            cnt = 0
+            temp = ""
+    if len(temp) > 0:
+        output_list.append(temp)
+
+    # Add an empty line if output_text is empty
+    if not output_list:
+        output_list.append("")
+
+    # Draw each line of text
+    for i in range(len(output_list)):
+        cv2.putText(
+            frame, ("Output: " if i == 0 else " " * 8) + output_list[i],
+            (output_box_origin[0] + 10, output_box_origin[1] + 50 * (i + 1)),
+            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2
+        )
+
+    # Draw a blinking cursor accurately
+    if cursor_visible:
+        last_line = output_list[-1]
+        prefix = "Output: " if len(output_list) == 1 else " " * 8
+        text_to_cursor = prefix + last_line
+
+        # Calculate cursor position using text width
+        text_width, text_height = cv2.getTextSize(text_to_cursor, cv2.FONT_HERSHEY_SIMPLEX, 1, 2)[0]
+        cursor_x = output_box_origin[0] + 10 + text_width
+        cursor_y = output_box_origin[1] + 50 * len(output_list)
+
+        # Draw the cursor as a small vertical rectangle
+        cursor_height = 30  # Height of the cursor
+        cv2.rectangle(frame, (cursor_x, cursor_y - cursor_height), (cursor_x + 2, cursor_y), (0, 0, 0), -1)
+
+    #cv2.imshow("Virtual Keyboard", frame)
+    frame_placeholder.image(frame, channels = "RGB")
+    if cv2.waitKey(1) & 0xFF == 27 or stop:  # Press Esc to exit
+        break
+
+
+cap.release()
+# cv2.destroyAllWindows()
+st.success("HI")
