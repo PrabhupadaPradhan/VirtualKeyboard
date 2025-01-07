@@ -203,8 +203,7 @@ while cap.isOpened() and not stop:
 
     #cv2.imshow("Virtual Keyboard", frame)
     frame_placeholder.image(frame, channels = "RGB")
-    st.image(frame)
-    if cv2.waitKey(1) & 0xFF == 27:  # Press Esc to exit
+    if cv2.waitKey(1) & 0xFF == 27 or stop:  # Press Esc to exit
         break
 
 
