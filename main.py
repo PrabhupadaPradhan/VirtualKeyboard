@@ -2,22 +2,6 @@ import numpy as np
 import cv2
 import mediapipe as mp
 import streamlit as st
-from streamlit.components.v1 import html
-
-st.title("Camera Access")
-html_code = """
-<video autoplay muted></video>
-<script>
-navigator.mediaDevices.getUserMedia({ video: true })
-  .then((stream) => {
-    document.querySelector('video').srcObject = stream;
-  })
-  .catch((err) => {
-    console.error('Error accessing webcam:', err);
-  });
-</script>
-"""
-html(html_code)
 
 st.title("Virtual Keyboard")
 frame_placeholder = st.empty()
